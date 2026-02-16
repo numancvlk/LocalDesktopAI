@@ -2,3 +2,5 @@ python-dotenv
 requests
 pydantic
 psutil
+faster-whisper
+numpy
