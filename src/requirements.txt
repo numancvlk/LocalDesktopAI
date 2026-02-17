@@ -4,3 +4,4 @@ pydantic
 psutil
 faster-whisper
 numpy
+PySide6
