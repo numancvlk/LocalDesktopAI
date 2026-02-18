@@ -31,12 +31,11 @@ class SafeExecutor:
 
     def __init__(self):
         self.dispatch = {
-            AllowedCommand.OPEN_APP: self.executeOpenAPP,
-            AllowedCommand.SYSTEM_INFO: self.executeSystemINFO,
+            AllowedCommand.OPEN_APP: self.executeOpenApp,
+            AllowedCommand.SYSTEM_INFO: self.executeSystemInfo,
             AllowedCommand.CPU_USAGE: self.executeCpuUsage,
             AllowedCommand.MEMORY_USAGE: self.executeMemoryUsage,
             AllowedCommand.DISK_USAGE: self.executeDiskUsage,
-            AllowedCommand.LIST_PROCESSES: self.executeListProcesses,
             AllowedCommand.OPEN_URL: self.executeOpenURL,
         }
 
@@ -53,12 +52,9 @@ class SafeExecutor:
         except Exception as e:
             raise ExecutionError(f"Executor Hata: {str(e)}")
     
-
-
-
     #TODO BOS RETURNLARI SILICEM BIR ARA 
     #TODO 2 Altta parametre almayan seyler var ama kalsin suanlik elleyip bozmayalim Ileride silerim belki
-    def executeOpenAPP(self, parameters: Dict[str, Any]) -> str:
+    def executeOpenApp(self, parameters: Dict[str, Any]) -> str:
         rawAppName = parameters.get("app_name", "").lower()
         
         cleanAppName = re.sub(r'[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ ]', '', rawAppName) #INJECTIONDAN KORUMAK ICIN KOYDUM SAKIN SILME
@@ -105,7 +101,61 @@ class SafeExecutor:
         except:
             raise ApplicationNotFoundError(f"'{cleanAppName}' bulunamadi.")
 
+    def executeCpuUsage(self, parameters: Dict[str, Any]) -> str:
+        percent = psutil.cpu_percent(interval=0.5)
+        count = psutil.cpu_count(logical=True)
+        return (f"⚡CPU Durumu ⚡<br>"
+                f"━━━━━━━━━━━━━━━━━━━<br>"
+                f"Kullanım: %{percent}<br>"
+                f"Çekirdek: {count} Mantıksal Çekirdek")
 
+    def executeMemoryUsage(self, parameters: Dict[str, Any]) -> str:
+        mem = psutil.virtual_memory()
+        total = round(mem.total / (1024 * 1024), 2)
+        used = round(mem.used / (1024 * 1024), 2)
+        available = round(mem.available / (1024 * 1024), 2)
+        return (f"🧠 RAM Durumu 🧠<br>"
+                f"━━━━━━━━━━━━━━━━━━━<br>"
+                f"Doluluk Oranı: %{mem.percent}<br>"
+                f"Kullanılan: {used} MB<br>"
+                f"Boşta Kalan: {available} MB<br>"
+                f"Toplam: {total} MB")
+
+    def executeDiskUsage(self, parameters: Dict[str, Any]) -> str:
+        report = "💾 DİSK DURUMU 💾<br>━━━━━━━━━━━━━━━━━━━<br>"
+        partitions = psutil.disk_partitions()
+        
+        for partition in partitions:
+            if os.name == 'nt' and 'cdrom' in partition.opts:
+                continue
+                
+            try:
+                usage = psutil.disk_usage(partition.mountpoint)
+                total = round(usage.total / (1024**3), 2)
+                used = round(usage.used / (1024**3), 2)
+                available = round(usage.free / (1024**3), 2)
+                
+                report += (f"<b>[{partition.device}]</b> - Doluluk: %{usage.percent}<br>"
+                           f"Kullanılan: {used} GB | Boş: {available} GB<br><br>")
+                
+            except PermissionError: #GIZL i DISK VARSA SIKINTI CIKARMASIN DIYE
+                continue
+                
+        return report.strip()
+
+    def executeSystemInfo(self, parameters: Dict[str, Any]) -> str:
+        cpuText = self.executeCpuUsage(parameters)
+        memText = self.executeMemoryUsage(parameters)
+        diskText = self.executeDiskUsage(parameters)
+        
+        return (
+            f"💻 GENEL SİSTEM RAPORU 💻<br><br>"
+            f"{cpuText}<br><br>"
+            f"{memText}<br><br>"
+            f"{diskText}"
+        )
+
+    #BUNA EL AT YANLIS CALISIYOR TAM ISTEDIGIM GIBI DEGIL TODO
     def executeOpenURL(self, parameters: Dict[str, Any]) -> str:
         url = parameters.get("url")
         try:
@@ -113,54 +163,3 @@ class SafeExecutor:
             return f"Tarayıcı acildi"
         except:
             raise ExecutionError(f"URL açılamadı")
-
-    def executeSystemINFO(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
-        return {
-            "cpu_kullanimi": self.executeCpuUsage(parameters),
-            "bellek_kullanimi": self.executeMemoryUsage(parameters),
-            "disk_kullanimi": self.executeDiskUsage(parameters)
-        }
-
-    def executeCpuUsage(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
-        percent = psutil.cpu_percent(interval=0.5)
-        count = psutil.cpu_count(logical=True)
-        return {"kullanim_yuzdesi": percent, "mantiksal_cekirdekler": count}
-
-    def executeMemoryUsage(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
-        mem = psutil.virtual_memory()
-        return {
-            "toplam_mb": round(mem.total / (1024 * 1024), 2),
-            "kullanilan_mb": round(mem.used / (1024 * 1024), 2),
-            "bos_mb": round(mem.available / (1024 * 1024), 2),
-            "bellek_kullanim_yuzdesi": mem.percent
-        }
-
-    def executeDiskUsage(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
-        usage = psutil.disk_usage('/')
-        return {
-            "toplam_gb": round(usage.total / (1024**3), 2),
-            "kullanilan_gb": round(usage.used / (1024**3), 2),
-            "bos_gb": round(usage.free / (1024**3), 2),
-            "disk_kullanim_yuzdesi": usage.percent
-        }
-
-    def executeListProcesses(self, parameters: Dict[str, Any]) -> List[Dict[str, Any]]:
-        processes = []
-        for proc in psutil.process_iter(['pid', 'name', 'memory_percent']):
-            try:
-                info = proc.info
-                if info['memory_percent'] is not None:
-                    processes.append(info)
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                pass
-        
-        processes = sorted(processes, key=lambda p: p['memory_percent'], reverse=True)
-        
-        return [
-            {
-                "islem_id": p['pid'], 
-                "isim": p['name'], 
-                "bellek_kullanim_yuzdesi": round(p['memory_percent'], 2)
-            } 
-            for p in processes[:10]
-        ]

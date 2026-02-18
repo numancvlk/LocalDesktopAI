@@ -41,13 +41,12 @@ class LLMWorker(QThread):
         "- cpu_usage\n"
         "- disk_usage\n"
         "- system_info\n"
-        "- list_processes\n\n"
 
         "4. Eğer kullanıcı cümlesinde 'aç', 'ac', 'başlat', 'calistir', 'çalıştır' gibi uygulama başlatma fiilleri varsa, command MUTLAKA 'open_app' olmalıdır.\n"
         "   Bu durumda parameters içine MUTLAKA {'app_name': '<uygulama_adi>'} eklenmelidir.\n"
         "   Asla 'ac' veya başka bir fiili command olarak kullanma.\n\n"
 
-        "5. Eğer kullanıcı yazım hatası yapmışsa (örneğin: 'whatsapi', 'gogle', 'youtub'), doğru uygulama veya servis adını tahmin edip düzelt.\n\n"
+        "5. Eğer kullanıcı yazım hatası yapmışsa (örneğin: 'whatsap', 'gogle', 'youtub'), doğru uygulama veya servis adını tahmin edip düzelt.\n\n"
 
         "6. Eğer open_url komutu kullanırsan:\n"
         "   - parameters içine MUTLAKA {'url': 'tam_link'} ekle.\n"
@@ -56,7 +55,7 @@ class LLMWorker(QThread):
         "   - Kelimeler arasına '+' koy.\n"
         "   - Örnekleri ezberleme. Kullanıcının istediği kelimeleri baz al.\n\n"
 
-        "7. memory_usage, cpu_usage, disk_usage, system_info ve list_processes komutlarında parameters KESİNLİKLE boş sözlük {} olmalıdır.\n\n"
+        "7. memory_usage, cpu_usage, disk_usage, system_info komutlarında parameters KESİNLİKLE boş sözlük {} olmalıdır.\n\n"
 
         "8. intent alanı Türkçe kısa açıklama olmalıdır (örneğin: 'Uygulama açma', 'RAM durumu sorgusu').\n"
         "   command ise SADECE enum değeridir.\n\n"
@@ -125,13 +124,16 @@ class ExecutionWorker(QThread):
             self.logs.emit("Kontrol basarili.")
             
             result = self.executor.execute(validRequest)
-            
-            finalOutput = json.dumps(result.get("data"), indent=2, ensure_ascii=False)
-            self.success.emit(f"İşlem Tamamlandı:\n{finalOutput}")
+            data = result.get("data")
+        
+            if isinstance(data, str):
+                finalOutput = data
+            else:
+                finalOutput = json.dumps(data, indent=2, ensure_ascii=False)
+            self.success.emit(finalOutput) 
             
         except Exception as e:
-            self.logs.emit(f"Güvenlik/Çalıştırma Hatası {str(e)}")
-            self.errors.emit(str(e))
+            pass
 
 
 class AsistanApp:

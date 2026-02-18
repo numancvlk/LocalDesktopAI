@@ -25,7 +25,6 @@ class AllowedCommand(str, Enum):
     CPU_USAGE = "cpu_usage"
     MEMORY_USAGE = "memory_usage"
     DISK_USAGE = "disk_usage"
-    LIST_PROCESSES = "list_processes"
 
 class CommandRequest(BaseModel):
     command: AllowedCommand = Field(
