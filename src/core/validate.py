@@ -20,6 +20,7 @@ class InvalidParameter(SecurityError): #KOMUTLAR GECERSIZ KOLUNCA CALISIR
 # TODO BURAYTA DAHA FAZLA KOMUT EKLEYECEGIM VE CIKARILCAKLAR VAR SIMDILIK KALABILIR
 class AllowedCommand(str, Enum): 
     OPEN_APP = "open_app"
+    OPEN_URL = "open_url"
     SYSTEM_INFO = "system_info"
     CPU_USAGE = "cpu_usage"
     MEMORY_USAGE = "memory_usage"
@@ -41,15 +42,21 @@ class CommandRequest(BaseModel):
         if self.command == AllowedCommand.OPEN_APP:
             appName = self.parameters.get("app_name")
             
-            if not appName:
-                raise ValueError("appName yok guzumm")
-            
-            if not isinstance(appName, str):
-                raise ValueError("string olmali appName")
+            if not appName or not isinstance(appName, str):
+                raise ValueError("Gecerli bir appname gerekli")
+            if not re.match(r'^[\w\s\-\.]+$', appName):
+                raise ValueError("appname tehlikeli karakterler iceriyor")
             
             if not re.match(r'^[\w\s\-]+$', appName):
                 raise ValueError("sacma sapan karakter zimbirti hatais")
-
+            
+        elif self.command == AllowedCommand.OPEN_URL:
+            url = self.parameters.get("url")
+            if not url or not isinstance(url, str):
+                raise ValueError("Gecerli bir url gerekli")
+            if not url.startswith(("http://", "https://")):
+                raise ValueError("Sadece http/https linklerine izin")
+            
         elif self.parameters:
              self.parameters = {}
 

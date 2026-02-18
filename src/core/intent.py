@@ -19,7 +19,7 @@ class Intent(BaseModel):
         description="parametreler eger yoksa zaten bos donmeli"
     )
     response: str = Field(
-        ..., 
+        default="ok",
         description="tts ile geri yanit vericez"
     )
 

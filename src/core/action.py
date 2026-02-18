@@ -2,6 +2,7 @@
 import subprocess
 import psutil
 import os
+import webbrowser
 from typing import Dict, Any, List
 from dotenv import load_dotenv
 
@@ -26,6 +27,17 @@ class ApplicationNotFoundError(ExecutionError):
 class SafeExecutor:
     defaultTimeout = DEFAULT_TIMEOUT
 
+    APP_ALIASES = {
+        "chrome": "chrome.exe",  
+        "hesap makinesi": "calc",
+        "calculator": "calc",
+        "not defteri": "notepad",
+        "word": "winword",
+        "excel": "excel",
+        "whatsapp": "whatsapp://", #SIMDILIK KALSINLAR BNUNLARA BIR HAL CARE BULUCAM TODO
+        "steam": "steam://open/main"
+    }
+
     def __init__(self):
         self.dispatch = {
             AllowedCommand.OPEN_APP: self.executeOpenAPP,
@@ -34,6 +46,7 @@ class SafeExecutor:
             AllowedCommand.MEMORY_USAGE: self.executeMemoryUsage,
             AllowedCommand.DISK_USAGE: self.executeDiskUsage,
             AllowedCommand.LIST_PROCESSES: self.executeListProcesses,
+            AllowedCommand.OPEN_URL: self.executeOpenURL,
         }
 
     def execute(self, request: CommandRequest) -> Dict[str, Any]:
@@ -47,17 +60,18 @@ class SafeExecutor:
             return {"status": "success", "data": result}
 
         except:
-            raise ExecutionError("Result yok")
+            raise ExecutionError(f" Hata")
     
     #TODO BOS RETURNLARI SILICEM BIR ARA 
     #TODO 2 Altta parametre almayan seyler var ama kalsin suanlik elleyip bozmayalim Ileride silerim belki
     def executeOpenAPP(self, parameters: Dict[str, Any]) -> str:
-        appName = parameters.get("app_name")
-        commandList = [appName]
+        raw_app_name = parameters.get("app_name").lower()
+        
+        appName = self.APP_ALIASES.get(raw_app_name, raw_app_name)
 
         try:
             subprocess.run(
-                commandList,
+                ["cmd", "/c", "start", "", appName],
                 shell=False,         #TRUE YAPMA BURAYI YANARIK
                 check=True,           
                 timeout=self.defaultTimeout,
@@ -72,6 +86,14 @@ class SafeExecutor:
              return f"'{appName}' timeout haytasi"
         except subprocess.CalledProcessError:
              raise ExecutionError(f"Uygulama hata ile kapoandi")
+        
+    def executeOpenURL(self, parameters: Dict[str, Any]) -> str:
+        url = parameters.get("url")
+        try:
+            webbrowser.open(url)
+            return f"Tarayıcı acildi"
+        except:
+            raise ExecutionError(f"URL açılamadı")
 
     def executeSystemINFO(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         return {
