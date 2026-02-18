@@ -1,5 +1,7 @@
 #LIBRARIESd
 import subprocess
+import shutil
+import re
 import psutil
 import os
 import webbrowser
@@ -27,17 +29,6 @@ class ApplicationNotFoundError(ExecutionError):
 class SafeExecutor:
     defaultTimeout = DEFAULT_TIMEOUT
 
-    APP_ALIASES = {
-        "chrome": "chrome.exe",  
-        "hesap makinesi": "calc",
-        "calculator": "calc",
-        "not defteri": "notepad",
-        "word": "winword",
-        "excel": "excel",
-        "whatsapp": "whatsapp://", #SIMDILIK KALSINLAR BNUNLARA BIR HAL CARE BULUCAM TODO
-        "steam": "steam://open/main"
-    }
-
     def __init__(self):
         self.dispatch = {
             AllowedCommand.OPEN_APP: self.executeOpenAPP,
@@ -59,34 +50,62 @@ class SafeExecutor:
             result = handler(request.parameters)
             return {"status": "success", "data": result}
 
-        except:
-            raise ExecutionError(f" Hata")
+        except Exception as e:
+            raise ExecutionError(f"Executor Hata: {str(e)}")
     
+
+
+
     #TODO BOS RETURNLARI SILICEM BIR ARA 
     #TODO 2 Altta parametre almayan seyler var ama kalsin suanlik elleyip bozmayalim Ileride silerim belki
     def executeOpenAPP(self, parameters: Dict[str, Any]) -> str:
-        raw_app_name = parameters.get("app_name").lower()
+        rawAppName = parameters.get("app_name", "").lower()
         
-        appName = self.APP_ALIASES.get(raw_app_name, raw_app_name)
+        cleanAppName = re.sub(r'[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ ]', '', rawAppName) #INJECTIONDAN KORUMAK ICIN KOYDUM SAKIN SILME
+        
+        if not cleanAppName:
+             raise ExecutionError("Gecersiz uygulama adi.")
+
+        path = shutil.which(cleanAppName)
+        if path:
+            subprocess.Popen(path)
+            return f"{cleanAppName} açildi (PATH)"
+
+        startMenuPaths = [
+            os.path.join(os.environ.get("PROGRAMDATA", ""), r"Microsoft\Windows\Start Menu\Programs"),
+            os.path.join(os.environ.get("APPDATA", ""), r"Microsoft\Windows\Start Menu\Programs"),
+        ]
+
+        for basePath in startMenuPaths:
+            if not os.path.exists(basePath): continue
+            for root, _, files in os.walk(basePath):
+                for file in files:
+                    if file.lower().endswith(".lnk") and cleanAppName in file.lower():
+                        fullPath = os.path.join(root, file)
+                        os.startfile(fullPath)
+                        return f"{cleanAppName} açildi (Kisayol)"
 
         try:
-            subprocess.run(
-                ["cmd", "/c", "start", "", appName],
-                shell=False,         #TRUE YAPMA BURAYI YANARIK
-                check=True,           
-                timeout=self.defaultTimeout,
-                capture_output=True,  
-                text=True
+            theCode = f"Get-StartApps | Where-Object {{$_.Name -like '*{cleanAppName}*'}} | Select-Object -ExpandProperty AppID -First 1"
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", theCode],
+                capture_output=True, text=True, timeout=DEFAULT_TIMEOUT
             )
-            return f"'{appName}' calisiyor"
-            
-        except FileNotFoundError:
-             raise ApplicationNotFoundError(f"Uygulama yok {appName}")
-        except subprocess.TimeoutExpired:
-             return f"'{appName}' timeout haytasi"
-        except subprocess.CalledProcessError:
-             raise ExecutionError(f"Uygulama hata ile kapoandi")
-        
+            appId = result.stdout.strip()
+
+            if appId:
+                subprocess.Popen(["explorer.exe", f"shell:AppsFolder\\{appId}"])
+                return f"{cleanAppName} acildi (Mağaza Uygulamasi)"
+        except:
+            pass
+
+        try:
+            os.system(f'start "" "{cleanAppName}"')
+            return f"{cleanAppName} sistemi zorlayarak acildi."
+        except:
+            raise ApplicationNotFoundError(f"'{cleanAppName}' bulunamadi.")
+
+
     def executeOpenURL(self, parameters: Dict[str, Any]) -> str:
         url = parameters.get("url")
         try:

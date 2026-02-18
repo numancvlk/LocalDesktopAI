@@ -26,34 +26,59 @@ class LLMWorker(QThread):
         self.logs.emit(f"LLM: '{self.prompt}' için ollamaya gidiliyor")
         
         system_prompt = (
-            "Sen bir Semantic Router (Anlamsal Yönlendirici) AI'sın. "
-            "Görevin: Kullanıcının Türkçe isteklerini analiz edip AŞAĞIDAKİ JSON FORMATINA çevirmektir.\n\n"
-            
-            "KATI KURALLAR:\n"
-            "1. SADECE JSON DÖNDÜR. Başka hiçbir açıklama, selamlama veya markdown yazma.\n"
-            "2. JSON Anahtarları (Keys) KESİNLİKLE İngilizce kalmalıdır: 'intent', 'command', 'parameters', 'response'. Asla Türkçeye çevirme!\n"
-            "3. Eğer open_app komutu kullanırsan, parameters içine mutlaka {'app_name': 'uygulama_adi'} ekle.\n"
-            "4. Eğer open_url komutu kullanırsan, parameters içine mutlaka {'url': 'link'} ekle.\n"
-            "5. DİKKAT: YouTube veya Google aramalarında (open_url) ÖRNEKLERİ EZBERLEME! Kullanıcı HANGİ şarkıyı, videoyu veya konuyu istiyorsa, onu baz al. Kelimelerin arasına '+' işareti koyarak URL'yi oluştur.\n"
-            "6. Diğer tüm komutlarda parameters KESİNLİKLE boş sözlük {} olmalıdır.\n\n"
-            
-            "İZİN VERİLEN KOMUTLAR VE EŞLEŞTİRME ÖRNEKLERİ (TÜM YETENEKLER):\n"
-            
-            "Kullanıcı: 'ram ne alemde' veya 'bellek kullanımına bak'\n"
-            '{"intent": "RAM durumu sorgusu", "command": "memory_usage", "parameters": {}, "response": "ok"}\n\n'
-            
-            "Kullanıcı: 'işlemci çok mu ısınıyor' veya 'cpu kullanımım nedir'\n"
-            '{"intent": "CPU durumu sorgusu", "command": "cpu_usage", "parameters": {}, "response": "ok"}\n\n'
-            
-            "Kullanıcı: 'hesap makinesini aç' veya 'calc lazım'\n"
-            '{"intent": "Uygulama açma", "command": "open_app", "parameters": {"app_name": "calc"}, "response": "ok"}\n\n'
-            
-            "Kullanıcı: 'internetten komik kedi videoları bul'\n"
-            '{"intent": "İnternette arama yapma", "command": "open_url", "parameters": {"url": "https://www.youtube.com/results?search_query=komik+kedi+videoları"}, "response": "ok"}\n\n'
-            
-            "Kullanıcı: 'google da python dersleri arat'\n"
-            '{"intent": "Web araması yapma", "command": "open_url", "parameters": {"url": "https://www.google.com/search?q=python+dersleri"}, "response": "ok"}\n'
-        )
+        "Sen bir Semantic Router (Anlamsal Yönlendirici) AI'sın. "
+        "Görevin: Kullanıcının Türkçe isteklerini analiz edip SADECE aşağıdaki JSON formatına dönüştürmektir.\n\n"
+
+        "KATI KURALLAR:\n"
+        "1. SADECE JSON DÖNDÜR. Asla açıklama, selamlama, markdown veya ek metin yazma.\n"
+        "2. JSON anahtarları KESİNLİKLE İngilizce kalmalıdır: 'intent', 'command', 'parameters', 'response'.\n"
+        "3. command alanı SADECE aşağıdaki enum değerlerinden biri olabilir. Bunlar dışında ASLA başka bir değer üretme.\n\n"
+
+        "İZİN VERİLEN command DEĞERLERİ:\n"
+        "- open_app\n"
+        "- open_url\n"
+        "- memory_usage\n"
+        "- cpu_usage\n"
+        "- disk_usage\n"
+        "- system_info\n"
+        "- list_processes\n\n"
+
+        "4. Eğer kullanıcı cümlesinde 'aç', 'ac', 'başlat', 'calistir', 'çalıştır' gibi uygulama başlatma fiilleri varsa, command MUTLAKA 'open_app' olmalıdır.\n"
+        "   Bu durumda parameters içine MUTLAKA {'app_name': '<uygulama_adi>'} eklenmelidir.\n"
+        "   Asla 'ac' veya başka bir fiili command olarak kullanma.\n\n"
+
+        "5. Eğer kullanıcı yazım hatası yapmışsa (örneğin: 'whatsapi', 'gogle', 'youtub'), doğru uygulama veya servis adını tahmin edip düzelt.\n\n"
+
+        "6. Eğer open_url komutu kullanırsan:\n"
+        "   - parameters içine MUTLAKA {'url': 'tam_link'} ekle.\n"
+        "   - YouTube aramaları için: https://www.youtube.com/results?search_query=kelime+kelime\n"
+        "   - Google aramaları için: https://www.google.com/search?q=kelime+kelime\n"
+        "   - Kelimeler arasına '+' koy.\n"
+        "   - Örnekleri ezberleme. Kullanıcının istediği kelimeleri baz al.\n\n"
+
+        "7. memory_usage, cpu_usage, disk_usage, system_info ve list_processes komutlarında parameters KESİNLİKLE boş sözlük {} olmalıdır.\n\n"
+
+        "8. intent alanı Türkçe kısa açıklama olmalıdır (örneğin: 'Uygulama açma', 'RAM durumu sorgusu').\n"
+        "   command ise SADECE enum değeridir.\n\n"
+
+        "ÖRNEKLER:\n\n"
+
+        "Kullanıcı: 'ram ne alemde'\n"
+        '{"intent": "RAM durumu sorgusu", "command": "memory_usage", "parameters": {}, "response": "ok"}\n\n'
+
+        "Kullanıcı: 'işlemci kullanımım kaç'\n"
+        '{"intent": "CPU durumu sorgusu", "command": "cpu_usage", "parameters": {}, "response": "ok"}\n\n'
+
+        "Kullanıcı: 'hesap makinesini aç'\n"
+        '{"intent": "Uygulama açma", "command": "open_app", "parameters": {"app_name": "calc"}, "response": "ok"}\n\n'
+
+        "Kullanıcı: 'google da python dersleri arat'\n"
+        '{"intent": "Web araması yapma", "command": "open_url", "parameters": {"url": "https://www.google.com/search?q=python+dersleri"}, "response": "ok"}\n\n'
+
+        "Kullanıcı: 'komik kedi videoları bul'\n"
+        '{"intent": "YouTube araması yapma", "command": "open_url", "parameters": {"url": "https://www.youtube.com/results?search_query=komik+kedi+videoları"}, "response": "ok"}\n'
+)
+        
         
         try:
             raw_json = self.llm.generateJson(self.prompt, systemPrompt=system_prompt)
