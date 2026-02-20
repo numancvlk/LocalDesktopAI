@@ -218,7 +218,9 @@ class AsistanApp:
     def llmSuccess(self, intent_data: Intent):
 
         if intent_data.command == "create_folder":
-            if "folder_name" not in intent_data.parameters:
+            folder_name = intent_data.parameters.get("folder_name")
+
+            if not folder_name:
                 self.window.apendChat(
                     "Asistan",
                     "Oluşturulacak klasörün adı ne olsun?",
