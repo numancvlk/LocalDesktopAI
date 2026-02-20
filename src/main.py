@@ -146,7 +146,6 @@ class AsistanApp:
 
     def connectSignals(self):
         self.window.textCommand.connect(self.textCommand)
-        # TODO: Mikrofon sinyali STT thread'i yazıldığında buraya bağlanacak
 
     def textCommand(self, text: str):
         self.window.appendLOG(f"Gelen komut: {text}")

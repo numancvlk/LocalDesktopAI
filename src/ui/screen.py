@@ -11,8 +11,6 @@ from PySide6.QtGui import QFont, QTextCursor
 #TODO UI UZERINE UGRASILCAK FINAL HALI DEGIL 
 class Screen(QMainWindow):
     textCommand = Signal(str)    # Kullanıcı bir sey yazarsa
-    micState = Signal(bool)  # Mikrofon basilirsa
-
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Yerel Desktop Asistani")
@@ -61,14 +59,8 @@ class Screen(QMainWindow):
         self.sendBTN.setCursor(Qt.PointingHandCursor)
         self.sendBTN.clicked.connect(self.sendButton)
 
-        self.micBTN = QPushButton("Dinle")
-        self.micBTN.setCursor(Qt.PointingHandCursor)
-        self.micBTN.setCheckable(True) 
-        self.micBTN.clicked.connect(self.micState)
-
         inputLayout.addWidget(self.inputField)
         inputLayout.addWidget(self.sendBTN)
-        inputLayout.addWidget(self.micBTN)
 
         layout.addLayout(inputLayout)
 
@@ -106,21 +98,7 @@ class Screen(QMainWindow):
             self.apendChat("Sen", text, color="#2980b9")
             self.textCommand.emit(text)
             self.inputField.clear()
-
-    def micState(self):
-        self.isListening = not self.isListening
-        
-        if self.isListening:
-            self.micBTN.setText("Durdur")
-            self.micBTN.setStyleSheet("background-color: #e74c3c; color: white; font-weight: bold;")
-            self.appendLOG("Sistem Mesaji --- MIC Dinleniyor ---")
-        else:
-            self.micBTN.setText("Dinle")
-            self.micBTN.setStyleSheet("") 
-            self.appendLOG("Sistem Mesaji --- MIC Kapatildi ---")
             
-        self.micState.emit(self.isListening)
-
 
     @Slot(str, str, str)
     def apendChat(self, sender: str, message: str, color: str = "#2c3e50"):
@@ -138,13 +116,6 @@ class Screen(QMainWindow):
         cursor = self.logDisp.textCursor()
         cursor.movePosition(QTextCursor.End)
         self.logDisp.setTextCursor(cursor)
-
-    @Slot(bool)
-    def updateMicState(self, is_listening: bool):
-        if self.isListening != is_listening:
-            self.micBTN.setChecked(is_listening)
-            self.micState()
-
 
     def applyStyles(self): #TODO STILLERI TASIMAYI UNUTMA KODLARI DUZENLE
         self.setStyleSheet("""
