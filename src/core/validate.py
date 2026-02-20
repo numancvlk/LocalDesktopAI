@@ -25,6 +25,7 @@ class AllowedCommand(str, Enum):
     CPU_USAGE = "cpu_usage"
     MEMORY_USAGE = "memory_usage"
     DISK_USAGE = "disk_usage"
+    CREATE_FOLDER = "create_folder"
 
 class CommandRequest(BaseModel):
     command: AllowedCommand = Field(
@@ -56,8 +57,31 @@ class CommandRequest(BaseModel):
             if not url.startswith(("http://", "https://")):
                 raise ValueError("Sadece http/https linklerine izin")
             
-        elif self.parameters:
-             self.parameters = {}
+        elif self.command == AllowedCommand.CREATE_FOLDER:
+            count = self.parameters.get("folder_count", 1)
+            name = self.parameters.get("folder_name", None)
+            
+            try:
+                count = int(count)
+            except:
+                count = 1
+
+            if count <= 0 or count > 100:
+                raise ValueError("folder_count 1 ile 100 arasında olmalı")
+
+            if name is not None:
+                if not isinstance(name, str):
+                    raise ValueError("folder_name string olmalı")
+                if not re.match(r'^[\w\s\-]+$', name):
+                    raise ValueError("folder_name geçersiz karakter içeriyor")
+
+            cleaned = {"folder_count": count}
+            if name:
+                cleaned["folder_name"] = name
+
+            self.parameters = cleaned
+        else:
+            self.parameters = {}
 
         return self
 

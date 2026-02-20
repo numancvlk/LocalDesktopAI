@@ -5,8 +5,9 @@ import re
 import psutil
 import os
 import webbrowser
-from typing import Dict, Any, List
+from typing import Dict, Any
 from dotenv import load_dotenv
+from pathlib import Path
 
 #SCIRPTS
 from core.validate import CommandRequest, AllowedCommand
@@ -37,6 +38,7 @@ class SafeExecutor:
             AllowedCommand.MEMORY_USAGE: self.executeMemoryUsage,
             AllowedCommand.DISK_USAGE: self.executeDiskUsage,
             AllowedCommand.OPEN_URL: self.executeOpenURL,
+            AllowedCommand.CREATE_FOLDER: self.executeCreateFolder,
         }
 
     def execute(self, request: CommandRequest) -> Dict[str, Any]:
@@ -52,8 +54,7 @@ class SafeExecutor:
         except Exception as e:
             raise ExecutionError(f"Executor Hata: {str(e)}")
     
-    #TODO BOS RETURNLARI SILICEM BIR ARA 
-    #TODO 2 Altta parametre almayan seyler var ama kalsin suanlik elleyip bozmayalim Ileride silerim belki
+# ----------------- UYGULAMA ACMA OZELLIGI ----------------- 
     def executeOpenApp(self, parameters: Dict[str, Any]) -> str:
         rawAppName = parameters.get("app_name", "").lower()
         
@@ -94,13 +95,9 @@ class SafeExecutor:
                 return f"{cleanAppName} acildi (Mağaza Uygulamasi)"
         except:
             pass
+# ----------------- UYGULAMA ACMA OZELLIGI ----------------- 
 
-        try:
-            os.system(f'start "" "{cleanAppName}"')
-            return f"{cleanAppName} sistemi zorlayarak acildi."
-        except:
-            raise ApplicationNotFoundError(f"'{cleanAppName}' bulunamadi.")
-
+# ----------------- SISTEM OZELLIKLERINE BAKIS OZELLIGI ----------------- 
     def executeCpuUsage(self, parameters: Dict[str, Any]) -> str:
         percent = psutil.cpu_percent(interval=0.5)
         count = psutil.cpu_count(logical=True)
@@ -142,7 +139,9 @@ class SafeExecutor:
                 continue
                 
         return report.strip()
-
+# ----------------- SISTEM OZELLIKLERINE BAKIS OZELLIGI ----------------- 
+#    
+# ----------------- GENEL SISTEM BAKIS OZELLIGI ----------------- 
     def executeSystemInfo(self, parameters: Dict[str, Any]) -> str:
         cpuText = self.executeCpuUsage(parameters)
         memText = self.executeMemoryUsage(parameters)
@@ -154,7 +153,62 @@ class SafeExecutor:
             f"{memText}<br><br>"
             f"{diskText}"
         )
+# ----------------- GENEL SISTEM BAKIS OZELLIGI ----------------- 
 
+# ----------------- DOSYA OLUSTUMA OZELLIGI ----------------- 
+    def desktopPath(self) -> Path:
+        base = Path.home() / "OneDrive"
+
+        for name in ["Desktop", "Masaüstü"]:
+            path = base / name
+            if path.exists():
+                return path
+
+        raise ExecutionError("Masaüstu bulunamadı.")
+
+    def executeCreateFolder(self, parameters: Dict[str, Any]) -> str:
+        try:
+            defaultName = parameters.get("folder_name", "Yeni_Klasor")
+            count = int(parameters.get("folder_count", 1))
+
+            if count < 1 or count > 50:
+                raise ExecutionError("Klasör sayısı 1-50 arasında olmalı.")
+
+            import re
+            cleanName = re.sub(r'[<>:"/\\|?*\n\r\t]', '', defaultName).strip()
+
+            if not cleanName:
+                raise ExecutionError("Geçersiz klasör adı.")
+
+            desktopPath = self.desktopPath()
+
+            created = []
+
+            for i in range(1, count + 1):
+
+                base_name = cleanName if count == 1 else f"{cleanName}_{i}"
+                folder_path = desktopPath / base_name
+
+                suffix = 1
+                while folder_path.exists():
+                    folder_path = desktopPath / f"{base_name}_{suffix}"
+                    suffix += 1
+
+                folder_path.mkdir()
+                created.append(folder_path.name)
+
+            return (
+                f"📁 {len(created)} klasör oluşturuldu.<br>"
+                f"Konum: {desktopPath}<br><br>"
+                + "<br>".join(created)
+            )
+
+        except:
+            raise ExecutionError(f"Klasör oluşturma hatası")
+# ----------------- DOSYA OLUSTUMA OZELLIGI ----------------- 
+
+
+# ----------------- ARASTIRMA OZELLIGI ----------------- 
     #BUNA EL AT YANLIS CALISIYOR TAM ISTEDIGIM GIBI DEGIL TODO
     def executeOpenURL(self, parameters: Dict[str, Any]) -> str:
         url = parameters.get("url")
@@ -163,3 +217,4 @@ class SafeExecutor:
             return f"Tarayıcı acildi"
         except:
             raise ExecutionError(f"URL açılamadı")
+# ----------------- ARASTIRMA OZELLIGI ----------------- 

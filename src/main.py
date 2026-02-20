@@ -9,7 +9,7 @@ from ui.screen import Screen
 #SCRIPTS
 from llm.ollama import Ollama  
 from core.intent import IntentParser, Intent
-from core.validate import SecurityValidator, CommandRequest
+from core.validate import SecurityValidator, AllowedCommand
 from core.action import SafeExecutor
 
 class LLMWorker(QThread):
@@ -41,6 +41,7 @@ class LLMWorker(QThread):
         "- cpu_usage\n"
         "- disk_usage\n"
         "- system_info\n"
+        "- create_folder\n"
 
         "4. Eğer kullanıcı cümlesinde 'aç', 'ac', 'başlat', 'calistir', 'çalıştır' gibi uygulama başlatma fiilleri varsa, command MUTLAKA 'open_app' olmalıdır.\n"
         "   Bu durumda parameters içine MUTLAKA {'app_name': '<uygulama_adi>'} eklenmelidir.\n"
@@ -60,7 +61,43 @@ class LLMWorker(QThread):
         "8. intent alanı Türkçe kısa açıklama olmalıdır (örneğin: 'Uygulama açma', 'RAM durumu sorgusu').\n"
         "   command ise SADECE enum değeridir.\n\n"
 
+        """Eğer kullanıcı aşağıdaki kelimelerden birini içeriyorsa:
+        - klasör
+        - klasor
+        - dosya
+        - folder
+        - yeni klasör
+        - oluştur
+        - olustur
+        - yap
+        - tane
+
+        VE uygulama adı içermiyorsa,
+        command MUTLAKA 'create_folder' olmalıdır.
+
+        Yazım hatalarını tolere et:
+        - kalsor = klasör
+        - olsutur = oluştur
+        - klasor = klasör
+
+        Bu tür komutları ASLA open_app olarak yorumlama."""
+
+        """Eğer kullanıcı "X klasörü oluştur" diyorsa:
+
+        - X kelimesini folder_name olarak ata.
+        - Örnek: "5 tane oyun klasörü oluştur"
+        → {"folder_name": "oyun", "folder_count": 5}
+
+        - Eğer isim belirtilmişse ASLA varsayılan isim kullanma."""
+
         "ÖRNEKLER:\n\n"
+        "Kullanıcı: '5 tane oyun klasörü oluştur'\n"
+        '{"intent":"Klasör oluşturma","command":"create_folder","parameters":{"folder_name":"oyun","folder_count":5},"response":"ok"}'
+        "Kullanıcı: 'masaüstüne 5 klasör oluştur'\n"
+        '{"intent": "Masaüstüne klasör oluşturma", "command": "create_folder", "parameters": {"folder_count": 5}, "response": "ok"}\n\n'
+        
+        "Kullanıcı: 'masaüstüne klasör oluştur'\n"
+        '{"intent": "Masaüstüne klasör oluşturma", "command": "create_folder", "parameters": {"folder_count": 1}, "response": "ok"}\n\n'
 
         "Kullanıcı: 'ram ne alemde'\n"
         '{"intent": "RAM durumu sorgusu", "command": "memory_usage", "parameters": {}, "response": "ok"}\n\n'
@@ -115,8 +152,8 @@ class ExecutionWorker(QThread):
         self.logs.emit(f"{self.intent_data.command}' komut dogrulaniyor")
         
         payload = {
-            "command": self.intent_data.command,
-            "parameters": self.intent_data.parameters
+            "command": AllowedCommand(self.intent_data.command),
+            "parameters": self.intent_data.parameters or {}
         }
         
         try:
@@ -133,7 +170,7 @@ class ExecutionWorker(QThread):
             self.success.emit(finalOutput) 
             
         except Exception as e:
-            pass
+            self.errors.emit(str(e))
 
 
 class AsistanApp:
@@ -142,12 +179,29 @@ class AsistanApp:
         self.window = Screen()
         self.activeThreads = []
 
+        self.waitingForFolderName = False
+        self.pendingIntent = None
+
         self.connectSignals()
 
     def connectSignals(self):
         self.window.textCommand.connect(self.textCommand)
+        # TODO: Mikrofon sinyali STT thread'i yazıldığında buraya bağlanacak
 
     def textCommand(self, text: str):
+        if self.waitingForFolderName:
+            self.pendingIntent.parameters["folder_name"] = text
+            self.waitingForFolderName = False
+
+            actionWorker = ExecutionWorker(self.pendingIntent)
+            actionWorker.logs.connect(self.window.appendLOG)
+            actionWorker.success.connect(self.actionSuccess)
+            actionWorker.errors.connect(self.actionError)
+
+            self.activeThreads.append(actionWorker)
+            actionWorker.start()
+            return
+        
         self.window.appendLOG(f"Gelen komut: {text}")
         
         self.activeThreads = [t for t in self.activeThreads if t.isRunning()]
@@ -162,6 +216,19 @@ class AsistanApp:
 
     @Slot(object)
     def llmSuccess(self, intent_data: Intent):
+
+        if intent_data.command == "create_folder":
+            if "folder_name" not in intent_data.parameters:
+                self.window.apendChat(
+                    "Asistan",
+                    "Oluşturulacak klasörün adı ne olsun?",
+                    "#f39c12"
+                )
+
+                self.waitingForFolderName = True
+                self.pendingIntent = intent_data
+                return
+            
         self.window.apendChat("Sistem Planı", f"{intent_data.intent} ({intent_data.command})", "#8e44ad")
         
         actionWorker = ExecutionWorker(intent_data)
